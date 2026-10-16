@@ -1,0 +1,99 @@
+diff --git a/src/hev-jni.c b/src/hev-jni.c
+index 6639837..c1e6772 100644
+--- a/src/hev-jni.c
++++ b/src/hev-jni.c
+@@ -22,6 +22,8 @@
+ 
+ #include "hev-jni.h"
+ 
++void hev_socks5_tunnel_set_drop_quic (int enabled);
++
+ /* clang-format off */
+ #ifndef PKGNAME
+ #define PKGNAME hev/htproxy
+@@ -51,13 +53,14 @@ static pthread_mutex_t mutex;
+ static pthread_key_t current_jni_env;
+ 
+ static jboolean native_start_service (JNIEnv *env, jobject thiz,
+-                                      jstring conig_path, jint fd);
++                                      jstring conig_path, jint fd,
++                                      jboolean drop_quic);
+ static jboolean native_stop_service (JNIEnv *env, jobject thiz);
+ static jboolean native_is_running (JNIEnv *env, jobject thiz);
+ static jlongArray native_get_stats (JNIEnv *env, jobject thiz);
+ 
+ static JNINativeMethod native_methods[] = {
+-    { "TProxyStartService", "(Ljava/lang/String;I)Z",
++    { "TProxyStartService", "(Ljava/lang/String;IZ)Z",
+       (void *)native_start_service },
+     { "TProxyStopService", "()Z", (void *)native_stop_service },
+     { "TProxyIsRunning", "()Z", (void *)native_is_running },
+@@ -113,7 +116,8 @@ thread_handler (void *data)
+ }
+ 
+ static jboolean
+-native_start_service (JNIEnv *env, jobject thiz, jstring config_path, jint fd)
++native_start_service (JNIEnv *env, jobject thiz, jstring config_path, jint fd,
++                      jboolean drop_quic)
+ {
+     const jbyte *bytes;
+     ThreadData *tdata;
+@@ -147,6 +151,7 @@ native_start_service (JNIEnv *env, jobject thiz, jstring config_path, jint fd)
+         goto exit;
+     }
+ 
++    hev_socks5_tunnel_set_drop_quic (drop_quic == JNI_TRUE);
+     atomic_store_explicit (&is_running, 1, memory_order_release);
+     res = pthread_create (&work_thread, NULL, thread_handler, tdata);
+     if (res != 0) {
+diff --git a/src/hev-socks5-tunnel.c b/src/hev-socks5-tunnel.c
+index 4a586d5..a8a1e7a 100644
+--- a/src/hev-socks5-tunnel.c
++++ b/src/hev-socks5-tunnel.c
+@@ -53,6 +53,7 @@ enum
+ };
+ 
+ static int run;
++static int drop_quic;
+ static atomic_int tsync;
+ 
+ static int tun_fd = -1;
+@@ -259,6 +260,15 @@ exit:
+     udp_remove (pcb);
+ }
+ 
++static void
++udp_drop_handler (void *arg, struct udp_pcb *pcb, struct pbuf *p,
++                  const ip_addr_t *addr, u16_t port)
++{
++    pbuf_free (p);
++    udp_recv (pcb, NULL, NULL);
++    udp_remove (pcb);
++}
++
+ static void
+ udp_recv_handler (void *arg, struct udp_pcb *pcb, struct pbuf *p,
+                   const ip_addr_t *addr, u16_t port)
+@@ -274,6 +284,12 @@ udp_recv_handler (void *arg, struct udp_pcb *pcb, struct pbuf *p,
+         return;
+     }
+ 
++    /* Optionally drop QUIC so clients fall back to TCP (and the DPI bypass). */
++    if (READ_ONCE (drop_quic) && port == 443) {
++        udp_recv (pcb, udp_drop_handler, NULL);
++        return;
++    }
++
+     dns = hev_mapped_dns_get ();
+     if (dns && addr->type == IPADDR_TYPE_V4) {
+         int faddr = hev_config_get_mapdns_address ();
+@@ -842,3 +858,9 @@ hev_socks5_tunnel_stats (size_t *tx_packets, size_t *tx_bytes,
+     if (rx_bytes)
+         *rx_bytes = stat_rx_bytes;
+ }
++
++void
++hev_socks5_tunnel_set_drop_quic (int enabled)
++{
++    WRITE_ONCE (drop_quic, enabled);
++}
