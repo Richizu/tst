@@ -151,6 +151,7 @@ private fun SettingsMain(onApps: () -> Unit, onLogs: () -> Unit) {
         Card(padding = 4.dp) {
             Item("DNS внутри обхода", tunnelDnsOptions.firstOrNull { it.first == Settings.tunnelDns }?.second ?: Settings.tunnelDns, Icons.Default.Dns, onClick = { sheet = "dns" })
             Item("Частный DNS системы", "Помогает, если провайдер подменяет адреса сайтов", Icons.Default.VerifiedUser, onClick = { sheet = "private_dns" })
+            SwitchRow("Блокировать QUIC (HTTP/3)", "Приложения переходят на обычный TCP, где обход работает. Выключите, если что-то сломалось", Icons.Default.Route, Settings.dropQuic) { Settings.dropQuic = it; vpnHint() }
             SwitchRow("IPv6", "Пускать IPv6-трафик через обход", Icons.Default.Language, Settings.ipv6) { Settings.ipv6 = it; vpnHint() }
         }
 
@@ -171,7 +172,7 @@ private fun SettingsMain(onApps: () -> Unit, onLogs: () -> Unit) {
 
         SectionTitle("Интерфейс")
         Card(padding = 4.dp) {
-            SwitchRow("Режим телевизора", "Интерфейс для пульта; на ТВ обход блокирует QUIC для стабильной работы YouTube", Icons.Default.Tv, Settings.tvMode) { Settings.tvMode = it; vpnHint() }
+            SwitchRow("Режим телевизора", "Интерфейс под пульт, плеер SmartTube", Icons.Default.Tv, Settings.tvMode) { Settings.tvMode = it; vpnHint() }
             Item("Плеер YouTube", if (Settings.player == Player.SmartTube) "SmartTube" else "Официальный YouTube", Icons.Default.PlayCircle, onClick = { sheet = "player" })
             SwitchRow("QR-коды вместо ссылок", "Показывать QR-код, чтобы открыть ссылку на телефоне", Icons.Default.QrCode, Settings.qrLinks) { Settings.qrLinks = it }
             SwitchRow("Меньше анимаций", "Экономит батарею на слабых устройствах", Icons.Default.Animation, Settings.lightUi) { Settings.lightUi = it }

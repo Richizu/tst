@@ -120,7 +120,8 @@ fun BypassScreen() {
                 Btn("Подобрать способ", Modifier.weight(1f), icon = Icons.Default.Search, enabled = scan.probing == null) { Scanner.start(ctx) }
                 Btn("Свой", tone = Tone.Secondary, icon = Icons.Default.Add) { editing = "" }
             }
-            if (scan.finishedAt > 0) Body(
+            if (scan.error != null) Card(color = C.RedSoft) { Body(scan.error!!, C.Text) }
+            else if (scan.finishedAt > 0) Body(
                 if (scan.best != null) "Подбор завершён: найден и применён лучший способ${network?.let { " для сети «${it.title}»" } ?: ""}."
                 else "Подбор завершён, рабочих способов не найдено."
             )
@@ -204,7 +205,7 @@ private fun ScanProgress() {
             Btn("Завершить сейчас", Modifier.weight(1f), Tone.Secondary, enabled = scan.found > 0) { Scanner.finishNow() }
             Btn("Отменить", Modifier.weight(1f), Tone.Danger) { Scanner.cancel() }
         }
-        Body("«Завершить сейчас» применит лучший из уже найденных способов.", C.Muted, 12)
+        Body("Во время подбора обход выключен — не включайте его, пока подбор не закончится. «Завершить сейчас» применит лучший из уже найденных способов.", C.Muted, 12)
     }
 }
 

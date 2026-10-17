@@ -63,6 +63,12 @@ object Control {
             vpn.value = RunState.Failed
             return
         }
+        if (com.richizu.fixrkn.bypass.Scanner.busy) {
+            AppLog.w(TAG, "Scan in progress, bypass not started")
+            lastError.value = "Идёт подбор способа обхода. Дождитесь окончания или нажмите «Завершить сейчас»."
+            vpn.value = RunState.Failed
+            return
+        }
         AppLog.i(TAG, "Starting bypass service")
         send(context, BypassVpnService::class.java, BypassVpnService.ACTION_START)
     }

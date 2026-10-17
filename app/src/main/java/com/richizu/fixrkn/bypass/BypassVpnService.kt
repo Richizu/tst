@@ -57,6 +57,7 @@ class BypassVpnService : VpnService() {
     private val lock = Mutex()
     private var tun: ParcelFileDescriptor? = null
     private var proxyThread: Thread? = null
+    private var proxyToken = -1
     private var statsJob: Job? = null
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
 
@@ -192,9 +193,12 @@ class BypassVpnService : VpnService() {
         val strategy = Settings.activeStrategy ?: Strategies.builtIn.first()
         val args = byeDpiArgs(strategy, PROXY_PORT)
         AppLog.i(TAG, "byedpi: $strategy")
+        val token = ByeDpiNative.begin()
+        if (token < 0) error("byedpi занят подбором способа. Дождитесь окончания подбора.")
+        proxyToken = token
         proxyThread = thread(name = "byedpi", isDaemon = true) {
             val code = try {
-                ByeDpiNative.run(args)
+                ByeDpiNative.run(token, args)
             } catch (e: Throwable) {
                 AppLog.e(TAG, "byedpi crashed", e)
                 -1
@@ -221,12 +225,14 @@ class BypassVpnService : VpnService() {
 
     private fun stopProxy() {
         val t = proxyThread ?: return
+        val token = proxyToken
         proxyThread = null
-        ByeDpiNative.stop()
+        proxyToken = -1
+        ByeDpiNative.stop(token)
         t.join(2000)
         if (t.isAlive) {
             AppLog.w(TAG, "byedpi did not stop in time, forcing")
-            ByeDpiNative.forceStop()
+            ByeDpiNative.forceStop(token)
             t.join(1000)
         }
     }
@@ -253,8 +259,8 @@ class BypassVpnService : VpnService() {
             ?: error("Android не создал VPN-интерфейс: нет разрешения или его перехватил другой VPN")
         tun = fd
         AppLog.i(TAG, "VPN interface established, fd ${fd.fd}")
-        // On TVs QUIC is dropped so YouTube falls back to TCP, which byedpi can handle.
-        val dropQuic = Settings.tvMode
+        // QUIC (UDP/443) is dropped so apps fall back to TCP, where byedpi's desync works.
+        val dropQuic = Settings.dropQuic
         if (!Tun2Socks.TProxyStartService(file.absolutePath, fd.fd, dropQuic)) {
             error("Туннель hev-socks5-tunnel не запустился")
         }

@@ -75,6 +75,9 @@ object Settings {
     var ipv6: Boolean
         get() = bool("ipv6", false)
         set(v) = setBool("ipv6", v)
+    var dropQuic: Boolean
+        get() = bool("drop_quic", true)
+        set(v) = setBool("drop_quic", v)
     var tunnelDns: String
         get() = str("tun_dns", "1.1.1.1")
         set(v) = setStr("tun_dns", v)

@@ -17,7 +17,9 @@ class Watchdog(context: Context, params: WorkerParameters) : CoroutineWorker(con
         private const val NAME = "watchdog"
 
         fun schedule(context: Context) {
-            val request = PeriodicWorkRequestBuilder<Watchdog>(15, TimeUnit.MINUTES).build()
+            val request = PeriodicWorkRequestBuilder<Watchdog>(15, TimeUnit.MINUTES)
+                .setInitialDelay(15, TimeUnit.MINUTES)
+                .build()
             WorkManager.getInstance(context).enqueueUniquePeriodicWork(NAME, ExistingPeriodicWorkPolicy.KEEP, request)
         }
 
@@ -27,7 +29,7 @@ class Watchdog(context: Context, params: WorkerParameters) : CoroutineWorker(con
     }
 
     override suspend fun doWork(): Result {
-        if (!Settings.bypassWanted || Settings.economy) return Result.success()
+        if (!Settings.bypassWanted || Settings.economy || com.richizu.fixrkn.bypass.Scanner.busy) return Result.success()
         if (Settings.youtubeEnabled && !BypassVpnService.alive && Control.vpn.value != RunState.Paused) {
             AppLog.w("Watchdog", "Bypass is not running, restarting")
             Control.startBypass(applicationContext)

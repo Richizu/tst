@@ -35,6 +35,12 @@ class ByeDpiHostTest {
                 assertTrue("byedpi did not start for $strategy", ms != -2L)
                 if (System.getenv("RKN_NET_TEST") == "1" && (i == 0 || i == 3)) assertTrue("fetch failed for $strategy", ms >= 0)
             }
+            // A second owner must not get the instance while the first holds it.
+            val token = ByeDpiNative.begin()
+            assertTrue(token > 0)
+            assertEquals(-1, ByeDpiNative.begin())
+            ByeDpiNative.release(token)
+            assertTrue(ByeDpiNative.begin() > 0)
         }
     }
 }

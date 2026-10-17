@@ -132,6 +132,7 @@ fun HomeScreen() {
                 onClick = {
                     when {
                         on || vpn == RunState.Paused -> Control.stopAll(ctx)
+                        scan.running && Settings.youtubeEnabled -> ctx.toast("Идёт подбор способа — дождитесь окончания")
                         !Settings.youtubeEnabled && !Settings.telegramEnabled -> ctx.toast("Включите хотя бы один сервис в настройках")
                         else -> starter.start(false, false)
                     }

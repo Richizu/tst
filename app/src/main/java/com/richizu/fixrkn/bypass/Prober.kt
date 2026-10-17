@@ -56,6 +56,10 @@ class Prober {
         )
         /** Wider set for the finalists. */
         val FULL_HOSTS = YOUTUBE_HOSTS + listOf(
+            "www.instagram.com",
+            "static.cdninstagram.com",
+            "scontent.cdninstagram.com",
+            "www.facebook.com",
             "youtu.be",
             "music.youtube.com",
             "i9.ytimg.com",
@@ -73,11 +77,21 @@ class Prober {
         open.toList().forEach { runCatching { it.disconnect() } }
     }
 
+    /** The single byedpi instance is held by someone else (the VPN or another probe). */
+    class BusyException : Exception("byedpi is busy")
+
     suspend fun <T> withStrategy(strategy: String, fallback: T, block: suspend (port: Int) -> T): T =
         withContext(Dispatchers.IO) {
+            var token = ByeDpiNative.begin()
+            var waited = 0
+            while (token < 0 && waited < 4000) {
+                delay(200); waited += 200
+                token = ByeDpiNative.begin()
+            }
+            if (token < 0) throw BusyException()
             var exitCode = 0
             val worker = thread(name = "byedpi-probe", isDaemon = true) {
-                exitCode = ByeDpiNative.run(byeDpiArgs(strategy, PORT))
+                exitCode = ByeDpiNative.run(token, byeDpiArgs(strategy, PORT))
             }
             try {
                 if (waitForPort()) block(PORT) else {
@@ -86,10 +100,10 @@ class Prober {
                 }
             } finally {
                 withContext(NonCancellable) {
-                    ByeDpiNative.stop()
+                    ByeDpiNative.stop(token)
                     worker.join(2000)
                     if (worker.isAlive) {
-                        ByeDpiNative.forceStop()
+                        ByeDpiNative.forceStop(token)
                         worker.join(2000)
                     }
                     delay(120)

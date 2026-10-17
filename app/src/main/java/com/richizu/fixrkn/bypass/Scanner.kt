@@ -25,7 +25,9 @@ data class ScanState(
     val best: String? = null,
     val finishedAt: Long = 0,
     /** A single-strategy probe is in progress for this command. */
-    val probing: String? = null
+    val probing: String? = null,
+    /** Why the last scan ended early, if it did. */
+    val error: String? = null
 )
 
 /** Finds working strategies for the current network. Runs in the application scope. */
@@ -51,11 +53,16 @@ object Scanner {
             val resumeAfter = Control.stopBypassForTesting(app)
             AppLog.i(TAG, "Scan of ${strategies.size} strategies started")
             val quick = IntArray(strategies.size)
+            var aborted: String? = null
             for ((i, s) in strategies.withIndex()) {
                 if (!isActive || finishEarly) break
                 _state.value = _state.value.copy(current = s, done = i)
-                val passed = prober.withStrategy(s, 0) { port ->
-                    prober.countReachable(Prober.QUICK_HOSTS, port, 3000)
+                val passed = try {
+                    prober.withStrategy(s, 0) { port -> prober.countReachable(Prober.QUICK_HOSTS, port, 3000) }
+                } catch (_: Prober.BusyException) {
+                    aborted = "Подбор прерван: обход был запущен во время проверки. Остановите обход и запустите подбор снова."
+                    AppLog.w(TAG, "byedpi busy, scan aborted")
+                    break
                 }
                 quick[i] = passed
                 val res = CheckResult(passed, Prober.QUICK_HOSTS.size, false, System.currentTimeMillis())
@@ -68,14 +75,17 @@ object Scanner {
             val finalists = strategies.indices.filter { quick[it] > 0 }.sortedByDescending { quick[it] }.take(FINALISTS)
             var best: String? = null
             var bestPassed = 0
-            if (!finishEarly && isActive && finalists.isNotEmpty()) {
+            if (aborted == null && !finishEarly && isActive && finalists.isNotEmpty()) {
                 _state.value = _state.value.copy(finalPhase = true, done = 0, total = finalists.size)
                 for ((n, i) in finalists.withIndex()) {
                     if (!isActive || finishEarly) break
                     val s = strategies[i]
                     _state.value = _state.value.copy(current = s, done = n)
-                    val passed = prober.withStrategy(s, 0) { port ->
-                        prober.countReachable(Prober.FULL_HOSTS, port, 5000)
+                    val passed = try {
+                        prober.withStrategy(s, 0) { port -> prober.countReachable(Prober.FULL_HOSTS, port, 5000) }
+                    } catch (_: Prober.BusyException) {
+                        aborted = "Подбор прерван: обход был запущен во время проверки."
+                        break
                     }
                     StrategyStore.setResult(s, CheckResult(passed, Prober.FULL_HOSTS.size, true, System.currentTimeMillis()))
                     if (passed > bestPassed) { bestPassed = passed; best = s }
@@ -84,6 +94,12 @@ object Scanner {
             }
             if (best == null) best = strategies.indices.filter { quick[it] > 0 }.maxByOrNull { quick[it] }?.let { strategies[it] }
 
+            if (aborted != null) {
+                AppLog.w(TAG, aborted)
+                _state.value = _state.value.copy(running = false, current = null, finishedAt = System.currentTimeMillis(), error = aborted)
+                if (resumeAfter) Control.startBypass(app)
+                return@launch
+            }
             if (best != null) {
                 Control.applyStrategy(app, best, Network.currentKind(app))
                 Settings.setupDone = true
@@ -117,6 +133,10 @@ object Scanner {
             val resume = Control.stopBypassForTesting(app)
             val result = try {
                 prober.probe(strategy)
+            } catch (_: Prober.BusyException) {
+                AppLog.w(TAG, "byedpi busy, probe skipped")
+                if (resume) Control.startBypass(app)
+                return@launch
             } finally {
                 _state.value = _state.value.copy(probing = null)
             }
