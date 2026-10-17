@@ -98,6 +98,7 @@ fun HomeScreen() {
     val traffic by Control.traffic.collectAsState()
     val since by Control.connectedSince.collectAsState()
     val scan by Scanner.state.collectAsState()
+    val lastError by Control.lastError.collectAsState()
     Settings.version.collectAsState().value
     val entries by StrategyStore.entries.collectAsState()
 
@@ -157,6 +158,14 @@ fun HomeScreen() {
                 if (on) "Удерживайте кнопку, чтобы свернуть приложение" else "Удерживайте, чтобы включить и свернуть",
                 color = C.Muted, fontSize = 12.sp
             )
+        }
+
+        if (vpn == RunState.Failed && lastError != null) {
+            Card(color = C.RedSoft) {
+                Text("Обход не запустился", color = C.Text, fontWeight = FontWeight.SemiBold)
+                Body(lastError!!, C.Text)
+                Body("Подробности — в Настройки → Журнал работы.", C.Muted, 12)
+            }
         }
 
         if (on) {

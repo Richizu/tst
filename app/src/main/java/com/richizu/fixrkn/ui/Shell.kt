@@ -102,11 +102,14 @@ fun Shell(startRequested: Boolean = false) {
     val consent = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         val p = pending
         pending = null
+        com.richizu.fixrkn.core.AppLog.i("Shell", "VPN consent result: ${result.resultCode}")
         if (result.resultCode == Activity.RESULT_OK && p != null) launchNow(p.first, p.second)
+        else if (p != null) Control.lastError.value = "Запрос VPN отклонён. Без него обход не работает."
     }
     val starter = remember {
         Starter { openTg, toBackground ->
             val intent = if (Settings.youtubeEnabled) Control.vpnConsentIntent(ctx) else null
+            com.richizu.fixrkn.core.AppLog.i("Shell", "Start requested; VPN consent needed: ${intent != null}")
             if (intent == null) {
                 launchNow(openTg, toBackground)
             } else {

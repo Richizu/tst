@@ -26,6 +26,8 @@ object Control {
     val traffic = MutableStateFlow(Traffic())
     /** Set when Android cannot show the VPN consent dialog (some TV firmwares). */
     val consentUnavailable = MutableStateFlow(false)
+    /** Human-readable reason of the last bypass failure, shown on the home screen. */
+    val lastError = MutableStateFlow<String?>(null)
     private val _connectedSince = MutableStateFlow(0L)
     val connectedSince: StateFlow<Long> = _connectedSince
 
@@ -34,6 +36,7 @@ object Control {
     fun setVpnState(state: RunState) {
         if (state == RunState.On && vpn.value != RunState.On) _connectedSince.value = System.currentTimeMillis()
         if (state == RunState.Off || state == RunState.Failed) _connectedSince.value = 0
+        if (state == RunState.On || state == RunState.Starting) lastError.value = null
         vpn.value = state
     }
 
@@ -56,8 +59,11 @@ object Control {
     fun startBypass(context: Context) {
         if (vpnConsentIntent(context) != null) {
             AppLog.w(TAG, "VPN permission not granted, bypass not started")
+            lastError.value = "Нет разрешения на VPN. Нажмите кнопку ещё раз и подтвердите запрос системы."
+            vpn.value = RunState.Failed
             return
         }
+        AppLog.i(TAG, "Starting bypass service")
         send(context, BypassVpnService::class.java, BypassVpnService.ACTION_START)
     }
 
@@ -117,6 +123,7 @@ object Control {
             ContextCompat.startForegroundService(context, intent)
         } catch (e: Exception) {
             AppLog.w(TAG, "Cannot start ${intent.component?.shortClassName}", e)
+            lastError.value = "Система не дала запустить службу: ${e.javaClass.simpleName}"
         }
     }
 }

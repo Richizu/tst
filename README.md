@@ -38,9 +38,16 @@ cd tst
 
 Нужны JDK 17+, Android SDK (platform 36), NDK `30.0.14904198` и CMake `3.22.1`.
 Нативные библиотеки собираются из исходников: `byedpi` — CMake вместе с JNI-мостом `app/src/main/cpp/bridge`,
-`hev-socks5-tunnel` — ndk-build с небольшим патчем `app/src/main/cpp/tun/hev-drop-quic.patch` (блокировка QUIC для ТВ).
+`hev-socks5-tunnel` (закреплён на 2.18.0, см. `app/src/main/cpp/tun/README.md`) — ndk-build с небольшим патчем `hev-drop-quic.patch` (блокировка QUIC для ТВ).
 
 APK также собирает GitHub Actions (`.github/workflows/build.yml`) — см. вкладку Actions.
+
+### Подпись
+
+Все сборки подписываются ключом `app/keystore/release.jks` (пароль и alias — `richizufixrkn`), поэтому новые версии
+устанавливаются поверх старых как обновление, в том числе через встроенную проверку обновлений. Хотите свой ключ —
+положите его вместо этого файла или задайте переменные `RKN_KEYSTORE`, `RKN_KEYSTORE_PASSWORD`, `RKN_KEY_ALIAS`, `RKN_KEY_PASSWORD`
+(в GitHub Actions — через Secrets). Ключ из репозитория виден всем, у кого есть доступ к репозиторию.
 
 ### Тесты
 

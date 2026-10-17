@@ -18,12 +18,25 @@ android {
         versionName = "1.0.0"
     }
 
+    // One permanent key for every build (local and CI), so each new APK installs
+    // over the previous one as an update. Override the store with RKN_KEYSTORE /
+    // RKN_KEYSTORE_PASSWORD / RKN_KEY_ALIAS / RKN_KEY_PASSWORD to use your own key.
+    signingConfigs {
+        create("app") {
+            storeFile = file(System.getenv("RKN_KEYSTORE") ?: "keystore/release.jks")
+            storePassword = System.getenv("RKN_KEYSTORE_PASSWORD") ?: "richizufixrkn"
+            keyAlias = System.getenv("RKN_KEY_ALIAS") ?: "richizufixrkn"
+            keyPassword = System.getenv("RKN_KEY_PASSWORD") ?: "richizufixrkn"
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
-            // Signed with the debug key so CI produces an installable APK;
-            // replace with your own signing config for public releases.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("app")
+        }
+        debug {
+            signingConfig = signingConfigs.getByName("app")
         }
     }
 
